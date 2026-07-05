@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- <link rel="stylesheet" href="cs/style.css" /> -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -29,16 +30,23 @@
       }
       .toolbar {
         position: sticky;
-        top: 20px; /* Tells the browser where to stick */
-        z-index: 100; /* Keeps the toolbar above the PDF pages */
+        top: 10px;
+        z-index: 100;
 
-        background: white;
+        background: #1f2937;
+        color: white;
+
         border-radius: 12px;
         padding: 15px 20px;
         margin-bottom: 20px;
+
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 12px;
+
+        flex-wrap: wrap;
+
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
       }
       .title {
@@ -48,12 +56,17 @@
       }
 
       #pdfList {
-        min-width: 260px;
+        flex: 1;
+        min-width: 180px;
+        max-width: 100%;
+
         padding: 10px 15px;
+
         border-radius: 8px;
-        border: 1px solid #ddd;
-        font-size: 15px;
-        outline: none;
+        border: none;
+
+        background: #374151;
+        color: white;
       }
 
       #flipbook-wrapper {
@@ -124,7 +137,9 @@
         padding: 10px 16px;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 16px;
+        font-size: 15px;
+
+        white-space: nowrap;
       }
 
       button:hover {
@@ -146,6 +161,52 @@
 
       .view-toggle button {
         background: #4b5563;
+      }
+
+      @media (max-width: 768px) {
+        body {
+          padding: 10px;
+        }
+
+        .viewer {
+          width: 100%;
+        }
+
+        .toolbar {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 10px;
+        }
+
+        #pdfList {
+          width: 100%;
+        }
+
+        .view-toggle {
+          width: 100%;
+          display: flex;
+        }
+
+        .view-toggle button {
+          flex: 1;
+        }
+
+        #prevBtn,
+        #nextBtn {
+          width: 100%;
+        }
+
+        #flipbook-wrapper {
+          border-radius: 10px;
+          padding: 0;
+          overflow: hidden;
+        }
+
+        #pageNumber {
+          text-align: center;
+          font-size: 15px;
+          padding: 10px 0;
+        }
       }
     </style>
   </head>
@@ -277,20 +338,24 @@
       }
 
       // Configure PageFlip to match the documentation's responsive behavior
+      const isMobile = window.innerWidth < 768;
+
       pageFlip = new window.St.PageFlip(container, {
-        width: 550, // Base page width
-        height: 733, // Base page height
+        width: isMobile ? 320 : 550,
+        height: isMobile ? 430 : 733,
+
         size: "stretch",
 
-        // If singlePageMode is true, force portrait. Otherwise, let it auto-detect mobile!
-        usePortrait: singlePageMode ? true : false,
+        usePortrait: singlePageMode || isMobile,
 
-        minWidth: 315,
+        minWidth: 280,
         maxWidth: 1000,
-        minHeight: 420,
+
+        minHeight: 380,
         maxHeight: 1350,
+
         showCover: false,
-        mobileScrollSupport: false, // From docs: disables content scrolling on mobile
+        mobileScrollSupport: false,
       });
 
       pageFlip.loadFromHTML(pages);
@@ -302,5 +367,13 @@
 
       document.getElementById("loading").style.display = "none";
     }
+
+    window.addEventListener("resize", () => {
+      clearTimeout(window.resizeTimer);
+
+      window.resizeTimer = setTimeout(() => {
+        loadPDF(document.getElementById("pdfList").value);
+      }, 300);
+    });
   </script>
 </html>
