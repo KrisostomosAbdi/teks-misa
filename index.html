@@ -189,10 +189,10 @@
     <div class="viewer">
       <div class="toolbar">
         <select id="pdfList"></select>
-        <div class="view-toggle">
+        <!-- <div class="view-toggle">
           <button id="spreadView" class="active">Horizontal</button>
           <button id="singleView">Vertical</button>
-        </div>
+        </div> -->
         <button id="prevBtn">PREV</button>
 
         <button id="nextBtn">NEXT</button>
@@ -261,10 +261,6 @@
 
       const viewer = document.querySelector(".viewer");
       const isMobile = window.innerWidth < 768;
-      if (isMobile) {
-        document.getElementsByClassName("view-toggle")[0].style.display =
-          "none"; // Hide view toggle on mobile
-      }
 
       // FIX: Apply max-width to the viewer itself so the toolbar shrinks with the flipbook
       if (singlePageMode || isMobile) {
