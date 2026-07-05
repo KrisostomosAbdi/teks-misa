@@ -20,32 +20,28 @@
         display: flex;
         justify-content: center;
         align-items: flex-start;
-        padding: 30px 15px; /* Slightly reduced horizontal padding for mobile */
+        padding: 30px 15px;
       }
 
       .viewer {
         width: 100%;
         max-width: 1500px;
-        transition: max-width 0.3s ease; /* Smooth transition when toggling views */
+        transition: max-width 0.3s ease;
       }
 
       .toolbar {
         position: sticky;
         top: 10px;
         z-index: 100;
-
         background: #1f2937;
         color: white;
-
         border-radius: 12px;
         padding: 15px 20px;
         margin-bottom: 20px;
-
         display: flex;
         justify-content: space-between;
         align-items: center;
         gap: 12px;
-
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
       }
 
@@ -125,57 +121,91 @@
         color: #333;
       }
 
-      .view-toggle {
+      /* === NEW MODAL STYLES === */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
         display: flex;
-        gap: 8px;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 0.3s ease,
+          visibility 0.3s ease;
       }
 
-      .view-toggle button.active {
-        background: #0d6efd;
+      .modal-overlay.show {
+        opacity: 1;
+        visibility: visible;
       }
 
-      .view-toggle button {
-        background: #4b5563;
+      .modal-content {
+        background: white;
+        padding: 30px 25px;
+        border-radius: 15px;
+        text-align: center;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+        transform: translateY(20px);
+        transition: transform 0.3s ease;
       }
 
-      /* Mobile Specific Adjustments */
+      .modal-overlay.show .modal-content {
+        transform: translateY(0);
+      }
+
+      .modal-icon {
+        font-size: 55px;
+        margin-bottom: 15px;
+      }
+
+      .modal-content h3 {
+        margin-bottom: 10px;
+        color: #1f2937;
+        font-size: 22px;
+      }
+
+      .modal-content p {
+        color: #4b5563;
+        line-height: 1.5;
+        margin-bottom: 25px;
+        font-size: 15px;
+      }
+
+      #closeModalBtn {
+        width: 100%;
+        font-size: 16px;
+        padding: 14px;
+        font-weight: bold;
+      }
+      /* ======================= */
+
       @media (max-width: 768px) {
         body {
           padding: 10px;
         }
-
-        /* Use CSS Grid on mobile to make the toolbar compact and save vertical space */
         .toolbar {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 10px;
           padding: 12px;
         }
-
         #pdfList {
-          grid-column: 1 / -1; /* Stretch across both columns */
-          width: 100%;
-        }
-
-        .view-toggle {
           grid-column: 1 / -1;
           width: 100%;
         }
-
-        .view-toggle button {
-          flex: 1;
-        }
-
         #prevBtn {
           grid-column: 1;
           width: 100%;
         }
-
         #nextBtn {
           grid-column: 2;
           width: 100%;
         }
-
         #pageNumber {
           font-size: 15px;
           padding-bottom: 20px;
@@ -185,17 +215,26 @@
   </head>
 
   <body>
+    <div id="dndModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-icon">📱🔇</div>
+        <h3>Mohon Perhatian</h3>
+        <p>
+          Sebelum Perayaan Ekaristi dimulai, mohon untuk
+          <strong
+            >mengaktifkan mode Jangan Ganggu (Do Not Disturb) / Hening</strong
+          >
+          pada perangkat Anda agar ibadat dapat berjalan dengan khusyuk.
+        </p>
+        <button id="closeModalBtn">Baik, Mengerti</button>
+      </div>
+    </div>
+
     <div id="loading">Loading PDF...</div>
     <div class="viewer">
       <div class="toolbar">
         <select id="pdfList"></select>
-        <!-- <div class="view-toggle">
-          <button id="spreadView" class="active">Horizontal</button>
-          <button id="singleView">Vertical</button>
-        </div> -->
-
         <button id="prevBtn">PREV</button>
-
         <button id="nextBtn">NEXT</button>
       </div>
 
@@ -209,6 +248,24 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    // === NEW MODAL LOGIC ===
+    document.addEventListener("DOMContentLoaded", () => {
+      const modal = document.getElementById("dndModal");
+      const closeBtn = document.getElementById("closeModalBtn");
+
+      // Check if user has already seen it in this session (tab open)
+      if (!sessionStorage.getItem("dndReminderSeen")) {
+        modal.classList.add("show");
+      }
+
+      closeBtn.addEventListener("click", () => {
+        modal.classList.remove("show");
+        // Save to session storage so it doesn't pop up on refresh
+        sessionStorage.setItem("dndReminderSeen", "true");
+      });
+    });
+    // =======================
 
     fetch("api/getpdf.json")
       .then((res) => res.json())
@@ -235,19 +292,22 @@
     const spreadBtn = document.getElementById("spreadView");
     const singleBtn = document.getElementById("singleView");
 
-    spreadBtn.onclick = () => {
-      singlePageMode = false;
-      spreadBtn.classList.add("active");
-      singleBtn.classList.remove("active");
-      loadPDF(document.getElementById("pdfList").value);
-    };
+    // Added safety check in case buttons remain commented out in HTML
+    if (spreadBtn && singleBtn) {
+      spreadBtn.onclick = () => {
+        singlePageMode = false;
+        spreadBtn.classList.add("active");
+        singleBtn.classList.remove("active");
+        loadPDF(document.getElementById("pdfList").value);
+      };
 
-    singleBtn.onclick = () => {
-      singlePageMode = true;
-      singleBtn.classList.add("active");
-      spreadBtn.classList.remove("active");
-      loadPDF(document.getElementById("pdfList").value);
-    };
+      singleBtn.onclick = () => {
+        singlePageMode = true;
+        singleBtn.classList.add("active");
+        spreadBtn.classList.remove("active");
+        loadPDF(document.getElementById("pdfList").value);
+      };
+    }
 
     async function loadPDF(url) {
       document.getElementById("loading").style.display = "flex";
@@ -263,11 +323,10 @@
       const viewer = document.querySelector(".viewer");
       const isMobile = window.innerWidth < 768;
 
-      // FIX: Apply max-width to the viewer itself so the toolbar shrinks with the flipbook
       if (singlePageMode || isMobile) {
         viewer.style.maxWidth = "600px";
       } else {
-        viewer.style.maxWidth = "1300px"; // Wide enough for nice horizontal spreads
+        viewer.style.maxWidth = "1300px";
       }
 
       if (pageFlip) {
@@ -310,12 +369,10 @@
         pages.push(div);
       }
 
-      // FIX: Calculate exact aspect ratio to prevent clipping on mobile
       const firstPage = await pdf.getPage(1);
       const vp = firstPage.getViewport({ scale: 1 });
       const pdfRatio = vp.height / vp.width;
 
-      // Use dynamic base width/height instead of hardcoded numbers
       const baseWidth = isMobile ? window.innerWidth - 20 : 550;
       const baseHeight = baseWidth * pdfRatio;
 
@@ -339,12 +396,10 @@
           `${e.data + 1} / ${pageFlip.getPageCount()}`;
       });
 
-      // Reset text for first page load
       document.getElementById("pageNumber").innerHTML = `1 / ${pdf.numPages}`;
       document.getElementById("loading").style.display = "none";
     }
 
-    // Debounced resize event to reload properly when flipping phone landscape/portrait
     window.addEventListener("resize", () => {
       clearTimeout(window.resizeTimer);
       window.resizeTimer = setTimeout(() => {
