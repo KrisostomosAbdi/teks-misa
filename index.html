@@ -158,7 +158,8 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    fetch("api/getpdf.php")
+    // fetch("api/getpdf.php")
+    fetch("api/getpdf.json")
       .then((res) => res.json())
       .then((data) => {
         const list = document.getElementById("pdfList");
