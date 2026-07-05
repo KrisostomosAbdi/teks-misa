@@ -262,7 +262,8 @@
       const viewer = document.querySelector(".viewer");
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
-        document.getElementById("view-toggle").style.display = "none"; // Hide view toggle on mobile
+        document.getElementsByClassName("view-toggle")[0].style.display =
+          "none"; // Hide view toggle on mobile
       }
 
       // FIX: Apply max-width to the viewer itself so the toolbar shrinks with the flipbook
