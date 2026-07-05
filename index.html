@@ -134,6 +134,19 @@
         width: 100%;
         margin-top: 10px;
       }
+
+      .view-toggle {
+        display: flex;
+        gap: 8px;
+      }
+
+      .view-toggle button.active {
+        background: #0d6efd;
+      }
+
+      .view-toggle button {
+        background: #4b5563;
+      }
     </style>
   </head>
 
@@ -144,6 +157,11 @@
         <button id="prevBtn">PREV</button>
 
         <select id="pdfList"></select>
+
+        <div class="view-toggle">
+          <button id="spreadView" class="active">Horizontal</button>
+          <button id="singleView">Vertical</button>
+        </div>
 
         <button id="nextBtn">NEXT</button>
       </div>
@@ -158,7 +176,7 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    // fetch("api/getpdf.php")
+
     fetch("api/getpdf.json")
       .then((res) => res.json())
       .then((data) => {
@@ -168,7 +186,6 @@
           let option = document.createElement("option");
           option.value = pdf.path;
           option.textContent = pdf.name;
-
           list.appendChild(option);
         });
 
@@ -178,11 +195,29 @@
     document.getElementById("pdfList").addEventListener("change", function () {
       loadPDF(this.value);
     });
-
     let pageFlip = null;
+    let singlePageMode = false;
+
+    const spreadBtn = document.getElementById("spreadView");
+    const singleBtn = document.getElementById("singleView");
+
+    spreadBtn.onclick = () => {
+      singlePageMode = false; // Reverts to automatic responsive mode
+      spreadBtn.classList.add("active");
+      singleBtn.classList.remove("active");
+      loadPDF(document.getElementById("pdfList").value);
+    };
+
+    singleBtn.onclick = () => {
+      singlePageMode = true; // Forces single page explicitly
+      singleBtn.classList.add("active");
+      spreadBtn.classList.remove("active");
+      loadPDF(document.getElementById("pdfList").value);
+    };
 
     async function loadPDF(url) {
       document.getElementById("loading").style.display = "flex";
+
       document.getElementById("prevBtn").onclick = () => {
         if (pageFlip) pageFlip.flipPrev();
       };
@@ -190,19 +225,23 @@
       document.getElementById("nextBtn").onclick = () => {
         if (pageFlip) pageFlip.flipNext();
       };
-      // Target the permanent wrapper instead of the flipbook directly
+
       const wrapper = document.getElementById("flipbook-wrapper");
 
-      // 1. Let pageFlip clean up its events and DOM elements
+      // Only restrict the wrapper if the user explicitly clicked "Single"
+      if (singlePageMode) {
+        wrapper.style.maxWidth = "600px";
+      } else {
+        wrapper.style.maxWidth = "100%";
+      }
+
       if (pageFlip) {
         pageFlip.destroy();
         pageFlip = null;
       }
 
-      // 2. Wipe the wrapper completely clean
       wrapper.innerHTML = "";
 
-      // 3. Create a brand new, fresh container for the next PDF
       const container = document.createElement("div");
       container.id = "flipbook";
       wrapper.appendChild(container);
@@ -212,12 +251,9 @@
 
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
-
-        const viewport = page.getViewport({
-          scale: 1.5,
-        });
-
+        const viewport = page.getViewport({ scale: 1.5 });
         const canvas = document.createElement("canvas");
+
         canvas.width = viewport.width;
         canvas.height = viewport.height;
 
@@ -227,54 +263,44 @@
         }).promise;
 
         const div = document.createElement("div");
-        const ratio = viewport.height / viewport.width;
 
-        div.style.width = "600px";
-        div.style.height = `${600 * ratio}px`;
+        // Let CSS handle the sizing rather than hardcoding inline pixel widths
+        div.className = "page";
         div.appendChild(canvas);
 
         canvas.style.width = "100%";
         canvas.style.height = "100%";
+        canvas.style.objectFit = "contain"; // Keeps PDF aspect ratio intact
 
-        // Append to the newly created container
         container.appendChild(div);
-
         pages.push(div);
       }
 
-      // Initialize page-flip on the fresh container
+      // Configure PageFlip to match the documentation's responsive behavior
       pageFlip = new window.St.PageFlip(container, {
-        width: 600,
-        height: 850,
-
+        width: 550, // Base page width
+        height: 733, // Base page height
         size: "stretch",
 
-        minWidth: 300,
+        // If singlePageMode is true, force portrait. Otherwise, let it auto-detect mobile!
+        usePortrait: singlePageMode ? true : false,
+
+        minWidth: 315,
         maxWidth: 1000,
-
-        minHeight: 400,
-        maxHeight: 1500,
-
+        minHeight: 420,
+        maxHeight: 1350,
         showCover: false,
-
-        usePortrait: true,
-        autoSize: true,
-
-        mobileScrollSupport: true,
-        useMouseEvents: true,
+        mobileScrollSupport: false, // From docs: disables content scrolling on mobile
       });
 
       pageFlip.loadFromHTML(pages);
+
       pageFlip.on("flip", (e) => {
         document.getElementById("pageNumber").innerHTML =
           `${e.data + 1} / ${pageFlip.getPageCount()}`;
       });
+
       document.getElementById("loading").style.display = "none";
     }
-
-    console.log(window.St);
-    console.log(window.PageFlip);
-    console.log(window.St);
-    console.log(window.St.PageFlip);
   </script>
 </html>
