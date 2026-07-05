@@ -2,7 +2,6 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- <link rel="stylesheet" href="cs/style.css" /> -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
@@ -20,14 +19,16 @@
         min-height: 100vh;
         display: flex;
         justify-content: center;
-        align-items: flex-start; /* Changed from 'center' to allow normal vertical scrolling */
-        padding: 30px;
+        align-items: flex-start;
+        padding: 30px 15px; /* Slightly reduced horizontal padding for mobile */
       }
 
       .viewer {
-        width: 95%;
+        width: 100%;
         max-width: 1500px;
+        transition: max-width 0.3s ease; /* Smooth transition when toggling views */
       }
+
       .toolbar {
         position: sticky;
         top: 10px;
@@ -45,26 +46,16 @@
         align-items: center;
         gap: 12px;
 
-        flex-wrap: wrap;
-
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-      }
-      .title {
-        font-size: 24px;
-        font-weight: bold;
-        color: #333;
       }
 
       #pdfList {
         flex: 1;
         min-width: 180px;
         max-width: 100%;
-
         padding: 10px 15px;
-
         border-radius: 8px;
         border: none;
-
         background: #374151;
         color: white;
       }
@@ -72,16 +63,12 @@
       #flipbook-wrapper {
         background: white;
         border-radius: 15px;
-
         display: flex;
         justify-content: center;
         align-items: center;
-
         padding: 0;
-
-        /* min-height: 900px; */
-
         box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+        overflow: hidden;
       }
 
       #flipbook {
@@ -96,6 +83,7 @@
         overflow: hidden;
         box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
       }
+
       .page canvas {
         width: 100%;
         height: 100%;
@@ -105,31 +93,15 @@
         position: fixed;
         inset: 0;
         background: rgba(255, 255, 255, 0.8);
-
         display: flex;
         justify-content: center;
         align-items: center;
-
         font-size: 24px;
         font-weight: bold;
-
+        z-index: 999;
         display: none;
       }
 
-      .toolbar {
-        background: #1f2937;
-        color: white;
-      }
-
-      .title {
-        color: white;
-      }
-
-      #pdfList {
-        background: #374151;
-        color: white;
-        border: none;
-      }
       button {
         border: none;
         background: #2563eb;
@@ -138,16 +110,19 @@
         border-radius: 8px;
         cursor: pointer;
         font-size: 15px;
-
         white-space: nowrap;
       }
 
       button:hover {
         background: #1d4ed8;
       }
-      .pageNumber {
+
+      #pageNumber {
         width: 100%;
-        margin-top: 10px;
+        margin-top: 15px;
+        text-align: center;
+        font-weight: bold;
+        color: #333;
       }
 
       .view-toggle {
@@ -163,49 +138,47 @@
         background: #4b5563;
       }
 
+      /* Mobile Specific Adjustments */
       @media (max-width: 768px) {
         body {
           padding: 10px;
         }
 
-        .viewer {
-          width: 100%;
-        }
-
+        /* Use CSS Grid on mobile to make the toolbar compact and save vertical space */
         .toolbar {
-          flex-direction: column;
-          align-items: stretch;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
           gap: 10px;
+          padding: 12px;
         }
 
         #pdfList {
+          grid-column: 1 / -1; /* Stretch across both columns */
           width: 100%;
         }
 
         .view-toggle {
+          grid-column: 1 / -1;
           width: 100%;
-          display: flex;
         }
 
         .view-toggle button {
           flex: 1;
         }
 
-        #prevBtn,
-        #nextBtn {
+        #prevBtn {
+          grid-column: 1;
           width: 100%;
         }
 
-        #flipbook-wrapper {
-          border-radius: 10px;
-          padding: 0;
-          overflow: hidden;
+        #nextBtn {
+          grid-column: 2;
+          width: 100%;
         }
 
         #pageNumber {
-          text-align: center;
           font-size: 15px;
-          padding: 10px 0;
+          padding-bottom: 20px;
         }
       }
     </style>
@@ -216,14 +189,11 @@
     <div class="viewer">
       <div class="toolbar">
         <button id="prevBtn">PREV</button>
-
         <select id="pdfList"></select>
-
         <div class="view-toggle">
           <button id="spreadView" class="active">Horizontal</button>
           <button id="singleView">Vertical</button>
         </div>
-
         <button id="nextBtn">NEXT</button>
       </div>
 
@@ -256,6 +226,7 @@
     document.getElementById("pdfList").addEventListener("change", function () {
       loadPDF(this.value);
     });
+
     let pageFlip = null;
     let singlePageMode = false;
 
@@ -263,14 +234,14 @@
     const singleBtn = document.getElementById("singleView");
 
     spreadBtn.onclick = () => {
-      singlePageMode = false; // Reverts to automatic responsive mode
+      singlePageMode = false;
       spreadBtn.classList.add("active");
       singleBtn.classList.remove("active");
       loadPDF(document.getElementById("pdfList").value);
     };
 
     singleBtn.onclick = () => {
-      singlePageMode = true; // Forces single page explicitly
+      singlePageMode = true;
       singleBtn.classList.add("active");
       spreadBtn.classList.remove("active");
       loadPDF(document.getElementById("pdfList").value);
@@ -287,13 +258,14 @@
         if (pageFlip) pageFlip.flipNext();
       };
 
-      const wrapper = document.getElementById("flipbook-wrapper");
+      const viewer = document.querySelector(".viewer");
+      const isMobile = window.innerWidth < 768;
 
-      // Only restrict the wrapper if the user explicitly clicked "Single"
-      if (singlePageMode) {
-        wrapper.style.maxWidth = "600px";
+      // FIX: Apply max-width to the viewer itself so the toolbar shrinks with the flipbook
+      if (singlePageMode || isMobile) {
+        viewer.style.maxWidth = "600px";
       } else {
-        wrapper.style.maxWidth = "100%";
+        viewer.style.maxWidth = "1300px"; // Wide enough for nice horizontal spreads
       }
 
       if (pageFlip) {
@@ -301,6 +273,7 @@
         pageFlip = null;
       }
 
+      const wrapper = document.getElementById("flipbook-wrapper");
       wrapper.innerHTML = "";
 
       const container = document.createElement("div");
@@ -324,36 +297,35 @@
         }).promise;
 
         const div = document.createElement("div");
-
-        // Let CSS handle the sizing rather than hardcoding inline pixel widths
         div.className = "page";
         div.appendChild(canvas);
 
         canvas.style.width = "100%";
         canvas.style.height = "100%";
-        canvas.style.objectFit = "contain"; // Keeps PDF aspect ratio intact
+        canvas.style.objectFit = "contain";
 
         container.appendChild(div);
         pages.push(div);
       }
 
-      // Configure PageFlip to match the documentation's responsive behavior
-      const isMobile = window.innerWidth < 768;
+      // FIX: Calculate exact aspect ratio to prevent clipping on mobile
+      const firstPage = await pdf.getPage(1);
+      const vp = firstPage.getViewport({ scale: 1 });
+      const pdfRatio = vp.height / vp.width;
+
+      // Use dynamic base width/height instead of hardcoded numbers
+      const baseWidth = isMobile ? window.innerWidth - 20 : 550;
+      const baseHeight = baseWidth * pdfRatio;
 
       pageFlip = new window.St.PageFlip(container, {
-        width: isMobile ? 320 : 550,
-        height: isMobile ? 430 : 733,
-
+        width: baseWidth,
+        height: baseHeight,
         size: "stretch",
-
         usePortrait: singlePageMode || isMobile,
-
         minWidth: 280,
         maxWidth: 1000,
-
         minHeight: 380,
-        maxHeight: 1350,
-
+        maxHeight: 1500,
         showCover: false,
         mobileScrollSupport: false,
       });
@@ -365,14 +337,18 @@
           `${e.data + 1} / ${pageFlip.getPageCount()}`;
       });
 
+      // Reset text for first page load
+      document.getElementById("pageNumber").innerHTML = `1 / ${pdf.numPages}`;
       document.getElementById("loading").style.display = "none";
     }
 
+    // Debounced resize event to reload properly when flipping phone landscape/portrait
     window.addEventListener("resize", () => {
       clearTimeout(window.resizeTimer);
-
       window.resizeTimer = setTimeout(() => {
-        loadPDF(document.getElementById("pdfList").value);
+        if (document.getElementById("pdfList").value) {
+          loadPDF(document.getElementById("pdfList").value);
+        }
       }, 300);
     });
   </script>
