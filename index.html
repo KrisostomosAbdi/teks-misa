@@ -1,0 +1,271 @@
+<!doctype html>
+<html>
+  <head>
+    <!-- <link rel="stylesheet" href="cs/style.css" /> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
+
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        background: #edf1f5;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start; /* Changed from 'center' to allow normal vertical scrolling */
+        padding: 30px;
+      }
+
+      .viewer {
+        width: 95%;
+        max-width: 1500px;
+      }
+      .toolbar {
+        position: sticky;
+        top: 20px; /* Tells the browser where to stick */
+        z-index: 100; /* Keeps the toolbar above the PDF pages */
+
+        background: white;
+        border-radius: 12px;
+        padding: 15px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+      }
+      .title {
+        font-size: 24px;
+        font-weight: bold;
+        color: #333;
+      }
+
+      #pdfList {
+        min-width: 260px;
+        padding: 10px 15px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        font-size: 15px;
+        outline: none;
+      }
+
+      #flipbook-wrapper {
+        background: white;
+        border-radius: 15px;
+
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        padding: 0;
+
+        /* min-height: 900px; */
+
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+      }
+
+      #flipbook {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+      }
+
+      .page {
+        background: white;
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+      }
+      .page canvas {
+        width: 100%;
+        height: 100%;
+      }
+
+      #loading {
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.8);
+
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        font-size: 24px;
+        font-weight: bold;
+
+        display: none;
+      }
+
+      .toolbar {
+        background: #1f2937;
+        color: white;
+      }
+
+      .title {
+        color: white;
+      }
+
+      #pdfList {
+        background: #374151;
+        color: white;
+        border: none;
+      }
+      button {
+        border: none;
+        background: #2563eb;
+        color: white;
+        padding: 10px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+
+      button:hover {
+        background: #1d4ed8;
+      }
+      .pageNumber {
+        width: 100%;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="loading">Loading PDF...</div>
+    <div class="viewer">
+      <div class="toolbar">
+        <button id="prevBtn">PREV</button>
+
+        <select id="pdfList"></select>
+
+        <button id="nextBtn">NEXT</button>
+      </div>
+
+      <div id="flipbook-wrapper">
+        <div id="flipbook"></div>
+      </div>
+      <div id="pageNumber">1 / 1</div>
+    </div>
+  </body>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    fetch("api/getpdf.php")
+      .then((res) => res.json())
+      .then((data) => {
+        const list = document.getElementById("pdfList");
+
+        data.forEach((pdf) => {
+          let option = document.createElement("option");
+          option.value = pdf.path;
+          option.textContent = pdf.name;
+
+          list.appendChild(option);
+        });
+
+        loadPDF(data[0].path);
+      });
+
+    document.getElementById("pdfList").addEventListener("change", function () {
+      loadPDF(this.value);
+    });
+
+    let pageFlip = null;
+
+    async function loadPDF(url) {
+      document.getElementById("loading").style.display = "flex";
+      document.getElementById("prevBtn").onclick = () => {
+        if (pageFlip) pageFlip.flipPrev();
+      };
+
+      document.getElementById("nextBtn").onclick = () => {
+        if (pageFlip) pageFlip.flipNext();
+      };
+      // Target the permanent wrapper instead of the flipbook directly
+      const wrapper = document.getElementById("flipbook-wrapper");
+
+      // 1. Let pageFlip clean up its events and DOM elements
+      if (pageFlip) {
+        pageFlip.destroy();
+        pageFlip = null;
+      }
+
+      // 2. Wipe the wrapper completely clean
+      wrapper.innerHTML = "";
+
+      // 3. Create a brand new, fresh container for the next PDF
+      const container = document.createElement("div");
+      container.id = "flipbook";
+      wrapper.appendChild(container);
+
+      const pdf = await pdfjsLib.getDocument(url).promise;
+      const pages = [];
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+
+        const viewport = page.getViewport({
+          scale: 1.5,
+        });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({
+          canvasContext: canvas.getContext("2d"),
+          viewport: viewport,
+        }).promise;
+
+        const div = document.createElement("div");
+        const ratio = viewport.height / viewport.width;
+
+        div.style.width = "600px";
+        div.style.height = `${600 * ratio}px`;
+        div.appendChild(canvas);
+
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+
+        // Append to the newly created container
+        container.appendChild(div);
+
+        pages.push(div);
+      }
+
+      // Initialize page-flip on the fresh container
+      pageFlip = new window.St.PageFlip(container, {
+        width: 600,
+        height: 850,
+        size: "stretch",
+        minWidth: 300,
+        maxWidth: 1000,
+        minHeight: 400,
+        maxHeight: 1500,
+        showCover: false,
+        mobileScrollSupport: true,
+        useMouseEvents: true,
+      });
+
+      pageFlip.loadFromHTML(pages);
+      pageFlip.on("flip", (e) => {
+        document.getElementById("pageNumber").innerHTML =
+          `${e.data + 1} / ${pageFlip.getPageCount()}`;
+      });
+      document.getElementById("loading").style.display = "none";
+    }
+
+    console.log(window.St);
+    console.log(window.PageFlip);
+    console.log(window.St);
+    console.log(window.St.PageFlip);
+  </script>
+</html>
