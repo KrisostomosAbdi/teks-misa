@@ -318,48 +318,47 @@
       });
     });
 
-    // Fetch PDFs
-    fetch("api/getpdf.json")
+    const GAS_URL =
+      "https://script.google.com/macros/s/AKfycbyxwFlwPa-j8GVfPfj0uCFQH2yvYNwZNz0tRIvDXAi0gSFWs3Di_Lh_f_MUvexfLXE/exec";
+    let pageFlip = null;
+    let singlePageMode = false;
+
+    // Fetch the list of PDFs
+    fetch(GAS_URL)
       .then((res) => res.json())
       .then((data) => {
         const list = document.getElementById("pdfList");
-
         data.forEach((pdf) => {
           let option = document.createElement("option");
-          option.value = pdf.path;
-          option.textContent = pdf.name.replace(".pdf", ""); // Removes .pdf from dropdown for cleaner look
+          option.value = pdf.id; // Use ID instead of URL
+          option.textContent = pdf.name.replace(".pdf", "");
           list.appendChild(option);
         });
 
-        loadPDF(data[0].path);
+        if (data.length > 0) {
+          loadPDF(data[0].id);
+        }
       });
 
     document.getElementById("pdfList").addEventListener("change", function () {
       loadPDF(this.value);
     });
 
-    let pageFlip = null;
-    let singlePageMode = false; // Kept false by default to allow auto-responsive spread
-
-    async function loadPDF(url) {
-      document.getElementById("loading").style.display = "flex";
+    async function loadPDF(id) {
+      const loadingScreen = document.getElementById("loading");
+      loadingScreen.style.display = "flex";
+      loadingScreen.innerText = "Mengunduh Teks Misa...";
 
       document.getElementById("prevBtn").onclick = () => {
         if (pageFlip) pageFlip.flipPrev();
       };
-
       document.getElementById("nextBtn").onclick = () => {
         if (pageFlip) pageFlip.flipNext();
       };
 
       const viewer = document.querySelector(".viewer");
       const isMobile = window.innerWidth < 768;
-
-      if (singlePageMode || isMobile) {
-        viewer.style.maxWidth = "600px";
-      } else {
-        viewer.style.maxWidth = "1200px"; // Slightly narrowed for a more book-like frame
-      }
+      viewer.style.maxWidth = singlePageMode || isMobile ? "600px" : "1200px";
 
       if (pageFlip) {
         pageFlip.destroy();
@@ -373,65 +372,203 @@
       container.id = "flipbook";
       wrapper.appendChild(container);
 
-      const pdf = await pdfjsLib.getDocument(url).promise;
-      const pages = [];
+      try {
+        // 1. Fetch the Base64 encoded PDF from Google Apps Script
+        const response = await fetch(`${GAS_URL}?action=getpdf&id=${id}`);
+        const base64String = await response.text();
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 1.5 });
-        const canvas = document.createElement("canvas");
+        loadingScreen.innerText = "Mempersiapkan Halaman...";
 
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        // 2. Convert Base64 to a format pdf.js can read (Uint8Array)
+        const pdfData = atob(base64String);
+        const uint8Array = new Uint8Array(pdfData.length);
+        for (let i = 0; i < pdfData.length; i++) {
+          uint8Array[i] = pdfData.charCodeAt(i);
+        }
 
-        await page.render({
-          canvasContext: canvas.getContext("2d"),
-          viewport: viewport,
-        }).promise;
+        // 3. Load into pdf.js
+        const pdf = await pdfjsLib.getDocument({ data: uint8Array }).promise;
+        const pages = [];
 
-        const div = document.createElement("div");
-        div.className = "page";
-        div.appendChild(canvas);
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 1.5 });
+          const canvas = document.createElement("canvas");
 
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        canvas.style.objectFit = "contain";
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
 
-        container.appendChild(div);
-        pages.push(div);
-      }
+          await page.render({
+            canvasContext: canvas.getContext("2d"),
+            viewport: viewport,
+          }).promise;
 
-      const firstPage = await pdf.getPage(1);
-      const vp = firstPage.getViewport({ scale: 1 });
-      const pdfRatio = vp.height / vp.width;
+          const div = document.createElement("div");
+          div.className = "page";
+          div.appendChild(canvas);
 
-      const baseWidth = isMobile ? window.innerWidth - 20 : 550;
-      const baseHeight = baseWidth * pdfRatio;
+          canvas.style.width = "100%";
+          canvas.style.height = "100%";
+          canvas.style.objectFit = "contain";
 
-      pageFlip = new window.St.PageFlip(container, {
-        width: baseWidth,
-        height: baseHeight,
-        size: "stretch",
-        usePortrait: singlePageMode || isMobile,
-        minWidth: 280,
-        maxWidth: 1000,
-        minHeight: 380,
-        maxHeight: 1500,
-        showCover: false,
-        mobileScrollSupport: false,
-      });
+          container.appendChild(div);
+          pages.push(div);
+        }
 
-      pageFlip.loadFromHTML(pages);
+        const firstPage = await pdf.getPage(1);
+        const vp = firstPage.getViewport({ scale: 1 });
+        const pdfRatio = vp.height / vp.width;
 
-      pageFlip.on("flip", (e) => {
+        const baseWidth = isMobile ? window.innerWidth - 20 : 550;
+        const baseHeight = baseWidth * pdfRatio;
+
+        pageFlip = new window.St.PageFlip(container, {
+          width: baseWidth,
+          height: baseHeight,
+          size: "stretch",
+          usePortrait: singlePageMode || isMobile,
+          minWidth: 280,
+          maxWidth: 1000,
+          minHeight: 380,
+          maxHeight: 1500,
+          showCover: false,
+          mobileScrollSupport: false,
+        });
+
+        pageFlip.loadFromHTML(pages);
+
+        pageFlip.on("flip", (e) => {
+          document.getElementById("pageNumber").innerHTML =
+            `Halaman ${e.data + 1} dari ${pageFlip.getPageCount()}`;
+        });
+
         document.getElementById("pageNumber").innerHTML =
-          `Halaman ${e.data + 1} dari ${pageFlip.getPageCount()}`;
-      });
-
-      document.getElementById("pageNumber").innerHTML =
-        `Halaman 1 dari ${pdf.numPages}`;
-      document.getElementById("loading").style.display = "none";
+          `Halaman 1 dari ${pdf.numPages}`;
+        loadingScreen.style.display = "none";
+        loadingScreen.innerText = "Mempersiapkan Teks Misa..."; // Reset text for next time
+      } catch (error) {
+        console.error("Failed to load PDF:", error);
+        loadingScreen.innerText =
+          "Gagal memuat PDF. Silakan muat ulang halaman.";
+      }
     }
+
+    // // Fetch PDFs
+    // fetch(
+    //   "https://script.google.com/macros/s/AKfycbyxwFlwPa-j8GVfPfj0uCFQH2yvYNwZNz0tRIvDXAi0gSFWs3Di_Lh_f_MUvexfLXE/exec",
+    // )
+    //   .then((res) => res.json())
+    //   .then((data) => {
+    //     const list = document.getElementById("pdfList");
+
+    //     data.forEach((pdf) => {
+    //       let option = document.createElement("option");
+    //       option.value = pdf.path;
+    //       option.textContent = pdf.name.replace(".pdf", ""); // Removes .pdf from dropdown for cleaner look
+    //       list.appendChild(option);
+    //     });
+
+    //     loadPDF(data[0].path);
+    //   });
+
+    // document.getElementById("pdfList").addEventListener("change", function () {
+    //   loadPDF(this.value);
+    // });
+
+    // let pageFlip = null;
+    // let singlePageMode = false; // Kept false by default to allow auto-responsive spread
+
+    // async function loadPDF(url) {
+    //   document.getElementById("loading").style.display = "flex";
+
+    //   document.getElementById("prevBtn").onclick = () => {
+    //     if (pageFlip) pageFlip.flipPrev();
+    //   };
+
+    //   document.getElementById("nextBtn").onclick = () => {
+    //     if (pageFlip) pageFlip.flipNext();
+    //   };
+
+    //   const viewer = document.querySelector(".viewer");
+    //   const isMobile = window.innerWidth < 768;
+
+    //   if (singlePageMode || isMobile) {
+    //     viewer.style.maxWidth = "600px";
+    //   } else {
+    //     viewer.style.maxWidth = "1200px"; // Slightly narrowed for a more book-like frame
+    //   }
+
+    //   if (pageFlip) {
+    //     pageFlip.destroy();
+    //     pageFlip = null;
+    //   }
+
+    //   const wrapper = document.getElementById("flipbook-wrapper");
+    //   wrapper.innerHTML = "";
+
+    //   const container = document.createElement("div");
+    //   container.id = "flipbook";
+    //   wrapper.appendChild(container);
+
+    //   const pdf = await pdfjsLib.getDocument(url).promise;
+    //   const pages = [];
+
+    //   for (let i = 1; i <= pdf.numPages; i++) {
+    //     const page = await pdf.getPage(i);
+    //     const viewport = page.getViewport({ scale: 1.5 });
+    //     const canvas = document.createElement("canvas");
+
+    //     canvas.width = viewport.width;
+    //     canvas.height = viewport.height;
+
+    //     await page.render({
+    //       canvasContext: canvas.getContext("2d"),
+    //       viewport: viewport,
+    //     }).promise;
+
+    //     const div = document.createElement("div");
+    //     div.className = "page";
+    //     div.appendChild(canvas);
+
+    //     canvas.style.width = "100%";
+    //     canvas.style.height = "100%";
+    //     canvas.style.objectFit = "contain";
+
+    //     container.appendChild(div);
+    //     pages.push(div);
+    //   }
+
+    //   const firstPage = await pdf.getPage(1);
+    //   const vp = firstPage.getViewport({ scale: 1 });
+    //   const pdfRatio = vp.height / vp.width;
+
+    //   const baseWidth = isMobile ? window.innerWidth - 20 : 550;
+    //   const baseHeight = baseWidth * pdfRatio;
+
+    //   pageFlip = new window.St.PageFlip(container, {
+    //     width: baseWidth,
+    //     height: baseHeight,
+    //     size: "stretch",
+    //     usePortrait: singlePageMode || isMobile,
+    //     minWidth: 280,
+    //     maxWidth: 1000,
+    //     minHeight: 380,
+    //     maxHeight: 1500,
+    //     showCover: false,
+    //     mobileScrollSupport: false,
+    //   });
+
+    //   pageFlip.loadFromHTML(pages);
+
+    //   pageFlip.on("flip", (e) => {
+    //     document.getElementById("pageNumber").innerHTML =
+    //       `Halaman ${e.data + 1} dari ${pageFlip.getPageCount()}`;
+    //   });
+
+    //   document.getElementById("pageNumber").innerHTML =
+    //     `Halaman 1 dari ${pdf.numPages}`;
+    //   document.getElementById("loading").style.display = "none";
+    // }
 
     window.addEventListener("resize", () => {
       clearTimeout(window.resizeTimer);
